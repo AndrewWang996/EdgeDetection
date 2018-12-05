@@ -505,6 +505,7 @@ public class MainActivity extends Activity {
                 Log.i(TAG, "height " + mDrawOnTop.mImageHeight + " width " + mDrawOnTop.mImageWidth);
             mDrawOnTop.mBitmap = Bitmap.createBitmap(mDrawOnTop.mImageWidth,
                     mDrawOnTop.mImageHeight, Bitmap.Config.RGB_565);
+            mDrawOnTop.mGrayData = new int[mDrawOnTop.mImageWidth * mDrawOnTop.mImageHeight];
             mDrawOnTop.mRGBData = new int[mDrawOnTop.mImageWidth * mDrawOnTop.mImageHeight];
             if (DBG)
                 Log.i(TAG, "data length " + data.length); // should be width*height*3/2 for YUV format
