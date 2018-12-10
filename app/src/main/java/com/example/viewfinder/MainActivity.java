@@ -34,6 +34,7 @@ import android.view.ViewGroup.LayoutParams;
 import android.view.Window;
 import android.view.WindowManager;
 import android.widget.Toast;
+import android.view.MotionEvent;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -44,8 +45,8 @@ import java.util.List;
 public class MainActivity extends Activity {
     String TAG = "ViewFinder";		// tag for logcat output
     String asterisks = " *******************************************"; // for noticable marker in log
-	protected static int mCam = 0;      //  (0 => rear facing) the number of the camera to use
-//	protected static int mCam = 1;      //  (1 => front facing) TODO: remove before release
+    protected static int mCam = 0;      //  (0 => rear facing) the number of the camera to use
+    //	protected static int mCam = 1;      //  (1 => front facing) TODO: remove before release
     protected static Camera mCamera = null;
     private int nPixels = 480 * 640;      // approx number of pixels desired in preview
     protected static int mCameraHeight;   // preview height (determined later)
@@ -55,7 +56,7 @@ public class MainActivity extends Activity {
     protected static LayoutParams mLayoutParams = new LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
     private static boolean DBG = BuildConfig.DEBUG; // provide normal log output only in debug version
 
-// for later: optional dump of useful info into the log
+    // for later: optional dump of useful info into the log
     static boolean bDisplayInfoFlag = false;	// show info about display  in log file
     static boolean nCameraInfoFlag = false;	// show info about cameras in log file
 
@@ -77,8 +78,8 @@ public class MainActivity extends Activity {
         getPermissions();   // NOTE: can *not* assume we actually have permissions after this call
 
 //		for later: optional dump of useful info into the log
-		if (bDisplayInfoFlag) ExtraInfo.showDisplayInfo(this); // show some info about display
-		if (nCameraInfoFlag) ExtraInfo.showCameraInfoAll(); // show some info about all cameras
+        if (bDisplayInfoFlag) ExtraInfo.showDisplayInfo(this); // show some info about display
+        if (nCameraInfoFlag) ExtraInfo.showCameraInfoAll(); // show some info about all cameras
     }
 
     // Because the CameraDevice object is not a shared resource,
@@ -98,7 +99,7 @@ public class MainActivity extends Activity {
     protected void onResume () {
         super.onResume();
         if (DBG) Log.v(TAG, "onResume" + asterisks);
-		super.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);	// TODO: remove this before
+        super.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);	// TODO: remove this before
         // release
         if (bCameraPermissionGranted) {
             openCamera(mCam);    // (re-)open camera here
@@ -198,6 +199,7 @@ public class MainActivity extends Activity {
         double redMean, greenMean, blueMean;    // computed results
         double redStdDev, greenStdDev, blueStdDev;
         String TAG = "DrawOnTop";       // for logcat output
+        CameraMode mode = CameraMode.DEFAULT;
 
         public DrawOnTop(Context context) { // constructor
             super(context);
@@ -242,33 +244,51 @@ public class MainActivity extends Activity {
                 return;    // because not yet set up
             }
 
-            // Convert image from YUV to RGB format:
-//            decodeYUV420SP(mRGBData, mYUVData, mImageWidth, mImageHeight);
+            if (mode == CameraMode.DEFAULT) {
+                return;
+            }
+
             decodeYUV420SPGrayscale(mGrayData, mYUVData, mImageWidth, mImageHeight);
 
             // Now do some image processing here:
             int[][] grayscale = new int[mImageHeight][mImageWidth];
-            System.out.printf("height, width = %d, %d\ngrayscale.length = %d\n",
-                    mImageHeight, mImageWidth,
-                    grayscale.length);
             for (int r=0; r<mImageHeight; r++) {
                 for (int c=0; c<mImageWidth; c++) {
                     grayscale[r][c] = mGrayData[r * mImageWidth + c];
                 }
             }
 
-            Bitmap edgyImage = EdgeDetector.GetSobelImage(
-                    grayscale, SobelOp.X_3x3);
+            Bitmap img = null;
+            String text = "";
+            if (mode == CameraMode.SOBEL) {
+                img = EdgeDetector.GetSobelImage(grayscale);
+                text = "Sobel";
+            } else if (mode == CameraMode.CANNY) {
+                img = EdgeDetector.GetCannyImage(grayscale);
+                text = "Canny";
+            }
 
             Paint paint = new Paint();
             paint.setAntiAlias(true);
             paint.setFilterBitmap(true);
             paint.setDither(true);
-            canvas.drawBitmap(edgyImage, 0, 0, paint);
 
+            int height_offset = 80;
+            int height = 2*img.getHeight();
+            int width = 2*img.getWidth();
+            int dx = img.getWidth()+30;
+
+            canvas.drawBitmap(img, null, new RectF(0, 0, width, height), null);
+            drawTextOnBlack(canvas, text, dx, height+height_offset, mPaintRed);
             super.onDraw(canvas);
 
         } // end onDraw method
+
+        @Override
+        public boolean onTouchEvent(MotionEvent event) {
+            switchCameraMode();
+            return true;
+        }
 
         public void decodeYUV420SP (int[] rgb, byte[] yuv420sp, int width, int height) { // convert image in YUV420SP format to RGB format
             final int frameSize = width * height;
@@ -310,6 +330,22 @@ public class MainActivity extends Activity {
                 if (y < 0) y = 0;
                 if (y > 0xFF) y = 0xFF;
                 rgb[pix] = 0xFF000000 | (y << 16) | (y << 8) | y;
+            }
+        }
+
+        public void switchCameraMode() {
+            switch (mode) {
+                case DEFAULT:
+                    mode = CameraMode.SOBEL;
+                    break;
+                case SOBEL:
+                    mode = CameraMode.CANNY;
+                    break;
+                case CANNY:
+                    mode = CameraMode.DEFAULT;
+                    break;
+                default:
+                    System.out.println("SHOULDN'T GET HERE");
             }
         }
 
