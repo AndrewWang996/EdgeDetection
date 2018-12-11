@@ -237,6 +237,7 @@ public class MainActivity extends Activity {
 
         @Override
         protected void onDraw (Canvas canvas) {
+            long startTime = System.currentTimeMillis();
             String TAG = "onDraw";
             if (mBitmap == null) {    // sanity check
                 Log.w(TAG, "mBitMap is null");
@@ -266,6 +267,9 @@ public class MainActivity extends Activity {
             } else if (mode == CameraMode.CANNY) {
                 img = EdgeDetector.GetCannyImage(grayscale);
                 text = "Canny";
+            } else if (mode == CameraMode.PREWITT) {
+                img = EdgeDetector.GetPrewittImage(grayscale);
+                text = "Prewitt";
             }
 
             Paint paint = new Paint();
@@ -280,13 +284,18 @@ public class MainActivity extends Activity {
 
             canvas.drawBitmap(img, null, new RectF(0, 0, width, height), null);
             drawTextOnBlack(canvas, text, dx, height+height_offset, mPaintRed);
+            long elapsed = System.currentTimeMillis() - startTime;
+            String framerate = Long.toString(elapsed)+" ms";
+            drawTextOnBlack(canvas, framerate, dx*2, height_offset, mPaintRed);
             super.onDraw(canvas);
 
         } // end onDraw method
 
         @Override
         public boolean onTouchEvent(MotionEvent event) {
-            switchCameraMode();
+            if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                switchCameraMode();
+            }
             return true;
         }
 
@@ -339,6 +348,9 @@ public class MainActivity extends Activity {
                     mode = CameraMode.SOBEL;
                     break;
                 case SOBEL:
+                    mode = CameraMode.PREWITT;
+                    break;
+                case PREWITT:
                     mode = CameraMode.CANNY;
                     break;
                 case CANNY:
@@ -347,54 +359,8 @@ public class MainActivity extends Activity {
                 default:
                     System.out.println("SHOULDN'T GET HERE");
             }
-        }
-
-        // This is where we finally actually do some "image processing"!
-
-        public void calculateIntensityHistograms (int[] rgb, int[] redHistogram, int[] greenHistogram, int[] blueHistogram, int width, int height) {
-            final int dpix = 1;
-            int red, green, blue, bin, pixVal;
-            for (bin = 0; bin < 256; bin++) { // reset the histograms
-                redHistogram[bin] = 0;
-                greenHistogram[bin] = 0;
-                blueHistogram[bin] = 0;
-            }
-            for (int pix = 0; pix < width * height; pix += dpix) {
-                pixVal = rgb[pix];
-                blue = pixVal & 0xFF;
-                blueHistogram[blue]++;
-                pixVal = pixVal >> 8;
-                green = pixVal & 0xFF;
-                greenHistogram[green]++;
-                pixVal = pixVal >> 8;
-                red = pixVal & 0xFF;
-                redHistogram[red]++;
-            }
-        }
-
-        private void calculateMeanAndStDev (int mRedHistogram[], int mGreenHistogram[], int mBlueHistogram[], int nPixels) {
-            // Calculate first and second moments (zeroth moment equals nPixels)
-            double red1stMoment = 0, green1stMoment = 0, blue1stMoment = 0;
-            double red2ndMoment = 0, green2ndMoment = 0, blue2ndMoment = 0;
-            double binsquared = 0;
-            for (int bin = 0; bin < 256; bin++) {
-                binsquared += (bin << 1) - 1;    // n^2 - (n-1)^2 = 2*n - 1
-                red1stMoment += mRedHistogram[bin] * bin;
-                green1stMoment += mGreenHistogram[bin] * bin;
-                blue1stMoment += mBlueHistogram[bin] * bin;
-                red2ndMoment += mRedHistogram[bin] * binsquared;
-                green2ndMoment += mGreenHistogram[bin] * binsquared;
-                blue2ndMoment += mBlueHistogram[bin] * binsquared;
-
-            } // bin
-
-            redMean = red1stMoment / nPixels;
-            greenMean = green1stMoment / nPixels;
-            blueMean = blue1stMoment / nPixels;
-
-            redStdDev = Math.sqrt(red2ndMoment / nPixels - redMean * redMean);
-            greenStdDev = Math.sqrt(green2ndMoment / nPixels - greenMean * greenMean);
-            blueStdDev = Math.sqrt(blue2ndMoment / nPixels - blueMean * blueMean);
+            invalidate();
+            System.out.println("ON TOUCH EVENT TRIGGERED");
         }
 
         private void drawTextOnBlack (Canvas canvas, String str, int rPos, int cPos, Paint mPaint) { // make text stand out from background by providing thin black border
@@ -405,27 +371,7 @@ public class MainActivity extends Activity {
             canvas.drawText(str, rPos, cPos, mPaint);
         }
 
-        private void drawHistogram (Canvas canvas, Paint mPaint,
-                                    int mHistogram[], int nPixels,
-                                    int mBottom, int marginWidth, float barWidth) {
-            float barMaxHeight = 3000; // controls vertical scale of histogram
-            float barMarginHeight = 2;
-
-            barRect.bottom = mBottom;
-            barRect.left = marginWidth;
-            barRect.right = barRect.left + barWidth;
-            for (int bin = 0; bin < 256; bin++) {
-                float prob = (float) mHistogram[bin] / (float) nPixels;
-                barRect.top = barRect.bottom - Math.min(80, prob * barMaxHeight) - barMarginHeight;
-                canvas.drawRect(barRect, mPaintBlack);
-                barRect.top += barMarginHeight;
-                canvas.drawRect(barRect, mPaint);
-                barRect.left += barWidth;
-                barRect.right += barWidth;
-            }
-        }
     }
-
 
 // -------- nested class Preview --------------------------------------------------------------
 
